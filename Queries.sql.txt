@@ -1,0 +1,74 @@
+/* Query 1 - query used for first insight */
+WITH t2 AS
+	(SELECT *
+	FROM
+		(SELECT f.film_id, f.title film_title, c.name category_name
+		FROM film f
+		JOIN film_category fc
+		ON f.film_id = fc.film_id
+		JOIN category c
+		ON fc.category_id = c.category_id) t1
+	WHERE category_name = 'Animation' OR category_name = 'Children' OR category_name = 'Classics' OR category_name = 'Comedy' OR category_name = 'Family' OR 	      	category_name = 'Music'),
+     t3 AS
+	(SELECT t2.film_title, t2.category_name, COUNT(r.inventory_id)
+	FROM t2
+	JOIN inventory i
+	ON t2.film_id = i.film_id
+	JOIN rental r
+	ON i.inventory_id = r.inventory_id
+	GROUP BY 1, 2
+	ORDER BY 2, 1)
+
+SELECT category_name, SUM(count)
+FROM t3
+GROUP BY 1
+ORDER BY 1;
+
+/* Query 2 - query used for second insight */
+WITH t AS 
+	(SELECT c.name, f.rental_duration, NTILE(4) OVER (PARTITION BY rental_duration ORDER BY rental_duration) AS standard_quartile
+	FROM film f
+	JOIN film_category fc
+	ON f.film_id = fc.film_id
+	JOIN category c
+	ON c.category_id = fc.category_id
+    	WHERE c.name = 'Animation' OR c.name = 'Children' OR c.name = 'Classics' OR c.name = 'Comedy' OR c.name = 'Family' OR c.name = 'Music'
+    	ORDER BY 2)
+        
+SELECT name, standard_quartile, COUNT(*)
+FROM t
+GROUP BY 1, 2
+ORDER BY 1, 2;
+
+/* Query 3 - query used for third insight */
+WITH t AS
+	(SELECT r.rental_id, DATE_PART('month', r.rental_date) AS Rental_month, DATE_PART('year', r.rental_date) AS Rental_year, s.store_id
+	FROM rental r
+	JOIN staff st
+	ON r.staff_id = st.staff_id
+	JOIN store s
+	ON s.store_id = st.store_id)
+
+SELECT rental_month, rental_year, store_id, COUNT(rental_id)
+FROM t
+GROUP BY 1, 2, 3
+ORDER BY 4 DESC;
+
+/* Query 4 - query used for fourth insight */
+SELECT DATE_TRUNC('month', t2.payment_date) AS pay_mon, t2.first_name || ' ' || t2.last_name as fullname, COUNT(t2.payment_id) AS pay_countpermon, SUM(t2.amount) AS 	pay_amount
+FROM
+	(SELECT SUM(p.amount) As total_amount, c.customer_id
+	FROM payment p
+	JOIN customer c
+	ON p.customer_id = c.customer_id
+	GROUP BY 2
+	ORDER BY 1 DESC
+	LIMIT 10) t1
+JOIN
+	(SELECT p.payment_id, p.customer_id, p.amount,	p.payment_date, c.first_name, c.last_name
+	FROM payment p
+	JOIN customer c
+	ON p.customer_id = c.customer_id)t2
+ON t1.customer_id = t2.customer_id
+GROUP BY 1, 2
+ORDER BY 2, 1;
